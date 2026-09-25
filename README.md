@@ -1,17 +1,22 @@
 # Atlas Bank — デジタルバンク デモアプリ
 
-TypeScript で書かれたシンプルなデジタルバンクのデモです。フロントエンド（Next.js）と API（Express）を分離し、データベースは PostgreSQL を Docker Compose で起動します。
+TypeScript で書かれたシンプルなデジタルバンクのデモです。画面と API を 1 つの Next.js アプリにまとめ、データベースは PostgreSQL を Docker Compose で起動します。
 
 ```
-demo-harness/
-├── docker-compose.yml   # db / api / web の 3 サービス
-├── api/                 # Express + TypeScript + node-postgres
-└── web/                 # Next.js 15 (App Router) + TypeScript
+demo-harness/                 # Next.js 15 (App Router) + TypeScript
+├── docker-compose.yml        # db / app の 2 サービス
+├── Dockerfile
+└── src/
+    ├── app/                  # 画面
+    ├── app/api/              # API（Route Handlers）
+    ├── server/               # DB 接続・認証・業務ロジック（サーバー専用）
+    ├── instrumentation.ts    # 起動時のスキーマ適用・デモデータ投入
+    └── lib/                  # ブラウザ側の API クライアントと共有型
 ```
 
 ## 機能
 
-- メールアドレス / パスワードによる新規登録・ログイン（bcrypt + JWT）
+- メールアドレス / パスワードによるログイン（bcrypt + JWT）
 - 口座一覧・総資産の表示
 - 口座ごとの明細（取引履歴）とサマリー
 - 口座番号を指定した振込（受取人の自動照会つき）
@@ -25,20 +30,18 @@ cp .env.example .env      # 任意（未作成でもデフォルト値で動き�
 docker compose up --build
 ```
 
-- Web: http://localhost:3000
-- API: http://localhost:4000 （ヘルスチェック: `/health`）
+- アプリ: http://localhost:3000 （API は同じオリジンの `/api/*`、ヘルスチェック: `/api/health`）
 - PostgreSQL: `localhost:5432`（user/password/db はすべて `atlasbank`）
 
-初回起動時に API がスキーマを作成し、デモデータを投入します。
+初回起動時にアプリがスキーマを作成し、デモデータを投入します。
 
 ### デモアカウント
 
 | メールアドレス       | パスワード    | 口座                                |
 | -------------------- | ------------- | ----------------------------------- |
-| `hanako@example.com` | `password123` | `1000-0001` 総合口座 / `1000-0002` 貯蓄口座 |
-| `taro@example.com`   | `password123` | `2000-0001` 総合口座                |
+| `tadashi.nemoto@harness.io`（根本 征） | `password123` | `1000-0001` 総合口座 / `1000-0002` 貯蓄口座 |
 
-`hanako` でログインし、振込先に `2000-0001` を入力すると送金を試せます。
+ログイン後、総合口座から振込先に `1000-0002`（貯蓄口座）を入力すると送金を試せます。
 
 ### 停止 / データの初期化
 
@@ -49,26 +52,20 @@ docker compose down -v     # ボリュームごと削除してデータを初期
 
 ## ローカル開発（Docker を使わない場合）
 
-DB だけ Docker で起動し、API と Web は手元の Node.js（v20 以上）で動かせます。
+DB だけ Docker で起動し、アプリは手元の Node.js（v20 以上）で動かせます。
 
 ```bash
 docker compose up -d db
 
-# API
-cd api && npm install
+npm install
 DATABASE_URL=postgres://atlasbank:atlasbank@localhost:5432/atlasbank JWT_SECRET=dev npm run dev
-
-# Web（別ターミナル）
-cd web && npm install
-NEXT_PUBLIC_API_URL=http://localhost:4000 npm run dev
 ```
 
 ## API エンドポイント
 
 | メソッド | パス                                   | 説明                                   |
 | -------- | -------------------------------------- | -------------------------------------- |
-| GET      | `/health`                              | ヘルスチェック                         |
-| POST     | `/api/auth/register`                   | 新規登録（総合口座を自動開設）         |
+| GET      | `/api/health`                          | ヘルスチェック                         |
 | POST     | `/api/auth/login`                      | ログイン（JWT を返す）                 |
 | GET      | `/api/auth/me`                         | ログイン中のユーザー情報               |
 | GET      | `/api/accounts`                        | 口座一覧と総資産                       |
@@ -82,11 +79,11 @@ NEXT_PUBLIC_API_URL=http://localhost:4000 npm run dev
 認証が必要なエンドポイントは `Authorization: Bearer <token>` ヘッダーを付けてください。
 
 ```bash
-TOKEN=$(curl -s -X POST http://localhost:4000/api/auth/login \
+TOKEN=$(curl -s -X POST http://localhost:3000/api/auth/login \
   -H 'Content-Type: application/json' \
-  -d '{"email":"hanako@example.com","password":"password123"}' | jq -r .token)
+  -d '{"email":"tadashi.nemoto@harness.io","password":"password123"}' | jq -r .token)
 
-curl -s http://localhost:4000/api/accounts -H "Authorization: Bearer $TOKEN" | jq
+curl -s http://localhost:3000/api/accounts -H "Authorization: Bearer $TOKEN" | jq
 ```
 
 ## データモデル
@@ -97,18 +94,16 @@ curl -s http://localhost:4000/api/accounts -H "Authorization: Bearer $TOKEN" | j
 | `accounts`     | `id`, `user_id`, `account_number`, `name`, `kind`, `currency`, `balance`    |
 | `transactions` | `id`, `account_id`, `peer_account_id`, `transfer_id`, `direction`, `kind`, `amount`, `balance_after`, `description` |
 
-金額は最小通貨単位の整数（JPY なら円）で保持し、小数計算による誤差を避けています。スキーマは API 起動時に `api/src/db/migrate.ts` が冪等に適用します。
+金額は最小通貨単位の整数（JPY なら円）で保持し、小数計算による誤差を避けています。スキーマはアプリ起動時に `src/server/db/migrate.ts` が冪等に適用します。
 
 ## 環境変数
 
-| 変数                  | 対象 | デフォルト                      | 説明                                     |
-| --------------------- | ---- | ------------------------------- | ---------------------------------------- |
-| `DATABASE_URL`        | api  | —                               | PostgreSQL 接続文字列                    |
-| `JWT_SECRET`          | api  | `dev-only-secret-change-me`     | JWT の署名鍵（本番では必ず変更）         |
-| `JWT_EXPIRES_IN`      | api  | `12h`                           | トークンの有効期限                       |
-| `CORS_ORIGIN`         | api  | `http://localhost:3000`         | 許可するオリジン（カンマ区切り）         |
-| `SEED_DEMO_DATA`      | api  | `true`                          | 起動時にデモデータを投入するか           |
-| `NEXT_PUBLIC_API_URL` | web  | `http://localhost:4000`         | ブラウザから見た API の URL（ビルド時に埋め込み） |
+| 変数             | デフォルト                                              | 説明                             |
+| ---------------- | ------------------------------------------------------- | -------------------------------- |
+| `DATABASE_URL`   | `postgres://atlasbank:atlasbank@localhost:5432/atlasbank` | PostgreSQL 接続文字列            |
+| `JWT_SECRET`     | `dev-only-secret-change-me`                             | JWT の署名鍵（本番では必ず変更） |
+| `JWT_EXPIRES_IN` | `12h`                                                   | トークンの有効期限               |
+| `SEED_DEMO_DATA` | `true`                                                  | 起動時にデモデータを投入するか   |
 
 ## デモ向けの割り切り
 
