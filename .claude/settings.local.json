@@ -1,0 +1,28 @@
+{
+  "permissions": {
+    "allow": [
+      "Bash(npm -v)",
+      "Bash(docker --version)",
+      "Bash(docker compose *)",
+      "Read(//Users/tadashi0713/.nvm/versions/**)",
+      "Read(//opt/homebrew/bin/**)",
+      "Bash(docker -v)",
+      "Bash(/usr/local/bin/docker-compose version *)",
+      "Read(//Users/tadashi0713/.docker/cli-plugins/**)",
+      "Read(//Applications/Docker.app/Contents/Resources/**)",
+      "Bash(DOCKER_CLI_PLUGIN_DIR=/Users/tadashi0713/.docker/cli-plugins docker compose version)",
+      "Bash(docker --help)",
+      "Bash(command -v docker)",
+      "Bash(~/.docker/cli-plugins/docker-compose version *)",
+      "Bash(brew list *)",
+      "Bash(docker build *)",
+      "Bash(docker network *)",
+      "Bash(docker rm *)",
+      "Bash(docker run *)",
+      "Bash(mkdir -p /tmp/nb-dockercfg)",
+      "Bash(DOCKER_CONFIG=/tmp/nb-dockercfg docker pull postgres:16-alpine)",
+      "Read(//Users/tadashi0713/.colima/**)",
+      "Bash(DOCKER_CONFIG=/tmp/nb-dockercfg DOCKER_HOST=unix:///Users/tadashi0713/.colima/default/docker.sock docker pull postgres:16-alpine)"
+    ]
+  }
+}
