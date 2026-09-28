@@ -61,6 +61,17 @@ npm install
 DATABASE_URL=postgres://atlasbank:atlasbank@localhost:5432/atlasbank JWT_SECRET=dev npm run dev
 ```
 
+## テスト
+
+ユニットテストは [Vitest](https://vitest.dev/) で書いています。DB はモックしているため、PostgreSQL を起動せずに実行できます。
+
+```bash
+npm test             # 1 回実行
+npm run test:watch   # ウォッチモード
+```
+
+テストファイルは対象のソースと同じディレクトリに `*.test.ts` として置いています。
+
 ## API エンドポイント
 
 | メソッド | パス                                   | 説明                                   |
