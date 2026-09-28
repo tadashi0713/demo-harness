@@ -57,8 +57,8 @@ DB だけ Docker で起動し、アプリは手元の Node.js（v20 以上）で
 ```bash
 docker compose up -d db
 
-npm install
-DATABASE_URL=postgres://atlasbank:atlasbank@localhost:5432/atlasbank JWT_SECRET=dev npm run dev
+yarn install
+DATABASE_URL=postgres://atlasbank:atlasbank@localhost:5432/atlasbank JWT_SECRET=dev yarn dev
 ```
 
 ## テスト
@@ -66,8 +66,8 @@ DATABASE_URL=postgres://atlasbank:atlasbank@localhost:5432/atlasbank JWT_SECRET=
 ユニットテストは [Vitest](https://vitest.dev/) で書いています。DB はモックしているため、PostgreSQL を起動せずに実行できます。
 
 ```bash
-npm test             # 1 回実行
-npm run test:watch   # ウォッチモード
+yarn test             # 1 回実行
+yarn test:watch       # ウォッチモード
 ```
 
 テストファイルは対象のソースと同じディレクトリに `*.test.ts` として置いています。
