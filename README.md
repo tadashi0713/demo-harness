@@ -6,6 +6,7 @@ TypeScript で書かれたシンプルなデジタルバンクのデモです。
 demo-harness/                 # Next.js 15 (App Router) + TypeScript
 ├── docker-compose.yml        # db / app の 2 サービス
 ├── Dockerfile
+├── terraform/                # AWS (EKS / ECR / RDS) へのデプロイ
 └── src/
     ├── app/                  # 画面
     ├── app/api/              # API（Route Handlers）
@@ -71,6 +72,44 @@ yarn test:watch       # ウォッチモード
 ```
 
 テストファイルは対象のソースと同じディレクトリに `*.test.ts` として置いています。
+
+## AWS へのデプロイ（Terraform）
+
+`terraform/` に、以下を 1 回の `terraform apply` で作るコードがあります。
+
+- VPC（3 AZ。パブリック / プライベート / DB 用サブネット、NAT Gateway）
+- Amazon EKS クラスターとマネージドノードグループ（AL2023, x86_64）
+- Amazon ECR リポジトリ（タグ上書き禁止、push 時にスキャン）
+- Amazon RDS for PostgreSQL 16（プライベートサブネット、EKS ノードからのみ接続可、SSL 接続で証明書を検証）
+- アプリの Kubernetes リソース（Deployment、NLB 経由で公開する Service、PodDisruptionBudget、DB 接続情報と JWT 署名鍵の Secret）
+
+必要なもの: Terraform 1.5 以上、AWS CLI（認証済み）、Docker
+
+```bash
+cd terraform
+cp terraform.tfvars.example terraform.tfvars   # 任意
+terraform init
+
+# 1. ECR リポジトリだけ先に作る
+TAG=$(git rev-parse --short HEAD)
+terraform apply -target=aws_ecr_repository.app -var image_tag=$TAG
+
+# 2. イメージをビルドして push する（ノードは x86_64 なので Apple Silicon でも amd64 でビルドする）
+ECR=$(terraform output -raw ecr_repository_url)
+aws ecr get-login-password --region ap-northeast-1 | docker login --username AWS --password-stdin ${ECR%%/*}
+docker build --platform linux/amd64 -t $ECR:$TAG ..
+docker push $ECR:$TAG
+
+# 3. 残りをすべて作成してアプリをデプロイする（初回は 20 分ほどかかる）
+terraform apply -var image_tag=$TAG
+terraform output app_url
+```
+
+2 回目以降のデプロイは、新しいタグでイメージを push してから手順 3 を実行します。kubectl を使う場合は `terraform output -raw configure_kubectl` のコマンドを実行してください。
+
+- `acm_certificate_arn` を指定しない場合、アプリは HTTP (80) で公開されます。ログイン情報や JWT が平文で流れるため、検証以外では ACM 証明書を指定して HTTPS にしてください。
+- state には DB パスワードと JWT 署名鍵が含まれます。チームで使う場合は `versions.tf` のコメントを参考に、暗号化した S3 バックエンドに保存してください。
+- RDS は削除保護が有効です。`terraform destroy` の前に `db_deletion_protection = false` などを設定して apply してください（`terraform.tfvars.example` 参照）。
 
 ## API エンドポイント
 

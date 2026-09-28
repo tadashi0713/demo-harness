@@ -1,0 +1,22 @@
+# cp terraform.tfvars.example terraform.tfvars して必要な値だけ変更する
+# image_tag はデプロイのたびに -var image_tag=... で渡す
+
+region  = "ap-northeast-1"
+project = "atlasbank"
+
+# 自分の IP だけに EKS API とアプリへのアクセスを絞る場合
+# cluster_endpoint_public_access_cidrs = ["203.0.113.10/32"]
+# app_allowed_cidrs                    = ["203.0.113.10/32"]
+
+# 独自ドメインの ACM 証明書を指定すると HTTPS (443) で公開する
+# acm_certificate_arn = "arn:aws:acm:ap-northeast-1:123456789012:certificate/..."
+
+# 本番相当の構成にする場合
+# single_nat_gateway = false
+# db_multi_az        = true
+# db_instance_class  = "db.t4g.small"
+
+# 検証後に terraform destroy で全部消したい場合
+# db_deletion_protection = false
+# db_skip_final_snapshot = true
+# ecr_force_delete       = true
