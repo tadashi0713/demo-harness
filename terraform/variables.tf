@@ -23,8 +23,25 @@ variable "vpc_cidr" {
   default     = "10.0.0.0/16"
 }
 
+variable "az_count" {
+  description = "使用する AZ の数（EKS と RDS の要件で 2 以上）"
+  type        = number
+  default     = 2
+
+  validation {
+    condition     = var.az_count >= 2
+    error_message = "az_count は 2 以上にしてください"
+  }
+}
+
+variable "enable_nat_gateway" {
+  description = "true ならノードをプライベートサブネットに置き NAT Gateway 経由で外に出す。false ならノードをパブリックサブネットに置き NAT Gateway を作らない"
+  type        = bool
+  default     = false
+}
+
 variable "single_nat_gateway" {
-  description = "NAT Gateway を 1 つだけ作る（コスト削減）。false なら AZ ごとに作る"
+  description = "enable_nat_gateway = true のとき、NAT Gateway を 1 つだけ作る。false なら AZ ごとに作る"
   type        = bool
   default     = true
 }
@@ -43,25 +60,48 @@ variable "cluster_endpoint_public_access_cidrs" {
   default     = ["0.0.0.0/0"]
 }
 
-variable "node_instance_types" {
-  description = "ワーカーノードのインスタンスタイプ（x86_64）"
+variable "cluster_enabled_log_types" {
+  description = "CloudWatch Logs に送るコントロールプレーンのログ（例: [\"audit\", \"api\", \"authenticator\"]）"
   type        = list(string)
-  default     = ["t3.medium"]
+  default     = []
+}
+
+variable "node_ami_type" {
+  description = "ワーカーノードの AMI。node_instance_types と CPU アーキテクチャを揃え、イメージも同じアーキテクチャでビルドする"
+  type        = string
+  default     = "AL2023_ARM_64_STANDARD"
+}
+
+variable "node_instance_types" {
+  description = "ワーカーノードのインスタンスタイプ。スポットの場合は複数指定すると確保しやすい"
+  type        = list(string)
+  default     = ["t4g.medium", "t4g.large", "c6g.large", "c7g.large"]
+}
+
+variable "node_capacity_type" {
+  description = "ON_DEMAND または SPOT"
+  type        = string
+  default     = "SPOT"
+
+  validation {
+    condition     = contains(["ON_DEMAND", "SPOT"], var.node_capacity_type)
+    error_message = "node_capacity_type は ON_DEMAND か SPOT を指定してください"
+  }
 }
 
 variable "node_min_size" {
   type    = number
-  default = 2
+  default = 1
 }
 
 variable "node_desired_size" {
   type    = number
-  default = 2
+  default = 1
 }
 
 variable "node_max_size" {
   type    = number
-  default = 4
+  default = 3
 }
 
 # --- ECR ---
@@ -69,7 +109,7 @@ variable "node_max_size" {
 variable "ecr_force_delete" {
   description = "イメージが残っていても ECR リポジトリを削除できるようにする"
   type        = bool
-  default     = false
+  default     = true
 }
 
 # --- RDS ---
@@ -104,26 +144,27 @@ variable "db_multi_az" {
 
 variable "db_backup_retention_days" {
   type    = number
-  default = 7
+  default = 1
 }
 
 variable "db_deletion_protection" {
-  description = "RDS の削除保護。terraform destroy する前に false にして apply する"
+  description = "RDS の削除保護。有効にした場合は terraform destroy の前に false にして apply する"
   type        = bool
-  default     = true
+  default     = false
 }
 
 variable "db_skip_final_snapshot" {
   description = "削除時に最終スナップショットを取らない"
   type        = bool
-  default     = false
+  default     = true
 }
 
 # --- アプリケーション ---
 
 variable "app_replicas" {
-  type    = number
-  default = 2
+  description = "2 以上にすると PodDisruptionBudget を作り、ノード入れ替え中も 1 台は稼働させる"
+  type        = number
+  default     = 1
 }
 
 variable "seed_demo_data" {

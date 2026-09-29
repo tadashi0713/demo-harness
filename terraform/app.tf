@@ -203,7 +203,10 @@ resource "kubernetes_deployment_v1" "app" {
   depends_on = [aws_vpc_security_group_ingress_rule.db_from_eks_nodes]
 }
 
+# レプリカ 1 台で min_available = 1 にするとノードの drain が進まなくなるため、2 台以上のときだけ作る
 resource "kubernetes_pod_disruption_budget_v1" "app" {
+  count = var.app_replicas > 1 ? 1 : 0
+
   metadata {
     name      = var.project
     namespace = kubernetes_namespace_v1.app.metadata[0].name

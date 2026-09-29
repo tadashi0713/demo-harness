@@ -77,11 +77,13 @@ yarn test:watch       # ウォッチモード
 
 `terraform/` に、以下を 1 回の `terraform apply` で作るコードがあります。
 
-- VPC（3 AZ。パブリック / プライベート / DB 用サブネット、NAT Gateway）
-- Amazon EKS クラスターとマネージドノードグループ（AL2023, x86_64）
+- VPC（2 AZ。パブリック / プライベート / DB 用サブネット）
+- Amazon EKS クラスターとマネージドノードグループ（AL2023, Graviton / arm64 のスポットインスタンス 1 台）
 - Amazon ECR リポジトリ（タグ上書き禁止、push 時にスキャン）
-- Amazon RDS for PostgreSQL 16（プライベートサブネット、EKS ノードからのみ接続可、SSL 接続で証明書を検証）
-- アプリの Kubernetes リソース（Deployment、NLB 経由で公開する Service、PodDisruptionBudget、DB 接続情報と JWT 署名鍵の Secret）
+- Amazon RDS for PostgreSQL 16（db.t4g.micro、Single-AZ、EKS ノードからのみ接続可、SSL 接続で証明書を検証）
+- アプリの Kubernetes リソース（Deployment、NLB 経由で公開する Service、DB 接続情報と JWT 署名鍵の Secret）
+
+デフォルト値は検証環境向けにコストを優先しています。NAT Gateway は作らず、ノードはパブリックサブネットに置きます。ノードが受け付けるのは EKS からの通信と、`app_allowed_cidrs` からアプリの NodePort への接続だけです。スポットのためノードが回収されると数分止まることがあります。本番相当にする設定は `terraform.tfvars.example` にまとめています。
 
 必要なもの: Terraform 1.5 以上、AWS CLI（認証済み）、Docker
 
@@ -94,10 +96,10 @@ terraform init
 TAG=$(git rev-parse --short HEAD)
 terraform apply -target=aws_ecr_repository.app -var image_tag=$TAG
 
-# 2. イメージをビルドして push する（ノードは x86_64 なので Apple Silicon でも amd64 でビルドする）
+# 2. イメージをビルドして push する（ノードは arm64。x86_64 のノードにした場合は linux/amd64）
 ECR=$(terraform output -raw ecr_repository_url)
 aws ecr get-login-password --region ap-northeast-1 | docker login --username AWS --password-stdin ${ECR%%/*}
-docker build --platform linux/amd64 -t $ECR:$TAG ..
+docker build --platform linux/arm64 -t $ECR:$TAG ..
 docker push $ECR:$TAG
 
 # 3. 残りをすべて作成してアプリをデプロイする（初回は 20 分ほどかかる）
@@ -109,7 +111,7 @@ terraform output app_url
 
 - `acm_certificate_arn` を指定しない場合、アプリは HTTP (80) で公開されます。ログイン情報や JWT が平文で流れるため、検証以外では ACM 証明書を指定して HTTPS にしてください。
 - state には DB パスワードと JWT 署名鍵が含まれます。チームで使う場合は `versions.tf` のコメントを参考に、暗号化した S3 バックエンドに保存してください。
-- RDS は削除保護が有効です。`terraform destroy` の前に `db_deletion_protection = false` などを設定して apply してください（`terraform.tfvars.example` 参照）。
+- EKS のコントロールプレーンは起動しているだけで課金されるため、使わない期間は `terraform destroy -var image_tag=$TAG` で削除するのが最も安上がりです。RDS の削除保護と最終スナップショットはデフォルトで無効なので、DB のデータも含めてすべて消えます。
 
 ## API エンドポイント
 

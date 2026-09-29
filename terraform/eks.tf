@@ -11,6 +11,9 @@ module "eks" {
   # terraform を実行した IAM プリンシパルにクラスター管理者権限を付与する
   enable_cluster_creator_admin_permissions = true
 
+  cluster_enabled_log_types   = var.cluster_enabled_log_types
+  create_cloudwatch_log_group = length(var.cluster_enabled_log_types) > 0
+
   vpc_id     = module.vpc.vpc_id
   subnet_ids = module.vpc.private_subnets
 
@@ -24,8 +27,10 @@ module "eks" {
 
   eks_managed_node_groups = {
     default = {
-      ami_type       = "AL2023_x86_64_STANDARD"
+      ami_type       = var.node_ami_type
       instance_types = var.node_instance_types
+      capacity_type  = var.node_capacity_type
+      subnet_ids     = var.enable_nat_gateway ? module.vpc.private_subnets : module.vpc.public_subnets
 
       min_size     = var.node_min_size
       desired_size = var.node_desired_size
