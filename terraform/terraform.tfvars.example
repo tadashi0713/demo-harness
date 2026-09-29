@@ -5,7 +5,7 @@
 # （Graviton のスポット 1 台、NAT Gateway なし、2 AZ、RDS は削除保護なし）
 
 region  = "ap-northeast-1"
-project = "atlasbank"
+project = "tadashi-demo"
 
 # 自分の IP だけに EKS API とアプリへのアクセスを絞る場合
 # cluster_endpoint_public_access_cidrs = ["203.0.113.10/32"]

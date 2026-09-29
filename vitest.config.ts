@@ -9,5 +9,7 @@ export default defineConfig({
     environment: 'node',
     include: ['src/**/*.test.ts'],
     env: { JWT_SECRET: 'test-secret', TZ: 'Asia/Tokyo' },
+    reporters: ['default', 'junit'],
+    outputFile: { junit: 'reports/junit.xml' },
   },
 });
