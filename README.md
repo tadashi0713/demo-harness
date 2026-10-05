@@ -109,8 +109,7 @@ terraform output app_url
 
 2 回目以降のデプロイは、新しいタグでイメージを push してから手順 3 を実行します。kubectl を使う場合は `terraform output -raw configure_kubectl` のコマンドを実行してください。
 
-- `acm_certificate_arn` を指定しない場合、アプリは HTTP (80) で公開されます。ログイン情報や JWT が平文で流れるため、検証以外では ACM 証明書を指定して HTTPS にしてください。
-- state には DB パスワードと JWT 署名鍵が含まれます。チームで使う場合は `versions.tf` のコメントを参考に、暗号化した S3 バックエンドに保存してください。
+- `acm_certificate_arn` を指定しない場合、アプリは HTTP (80) で公開されます。ログイン情報や JWT が平文で流れるため、検証以外では ACM 証明書を指定して HTTPS にしてください。- state には DB パスワードと JWT 署名鍵が含まれます。チームで使う場合は `versions.tf` のコメントを参考に、暗号化した S3 バックエンドに保存してください。
 - EKS のコントロールプレーンは起動しているだけで課金されるため、使わない期間は `terraform destroy -var image_tag=$TAG` で削除するのが最も安上がりです。RDS の削除保護と最終スナップショットはデフォルトで無効なので、DB のデータも含めてすべて消えます。
 
 ## API エンドポイント
