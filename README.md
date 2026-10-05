@@ -6,7 +6,8 @@ TypeScript で書かれたシンプルなデジタルバンクのデモです。
 demo-harness/                 # Next.js 15 (App Router) + TypeScript
 ├── docker-compose.yml        # db / app の 2 サービス
 ├── Dockerfile
-├── terraform/                # AWS (EKS / ECR / RDS) へのデプロイ
+├── terraform/                # AWS (EKS / ECR / RDS) のインフラ
+├── k8s/                      # EKS にデプロイするマニフェスト（Kustomize）
 └── src/
     ├── app/                  # 画面
     ├── app/api/              # API（Route Handlers）
@@ -75,13 +76,13 @@ yarn test:watch       # ウォッチモード
 
 ## AWS へのデプロイ（Terraform）
 
-`terraform/` に、以下を 1 回の `terraform apply` で作るコードがあります。
+インフラは `terraform/` の Terraform、アプリの Deployment は `k8s/` の Kustomize マニフェストで管理します。`terraform apply` で作られるのは以下です。
 
 - VPC（2 AZ。パブリック / プライベート / DB 用サブネット）
 - Amazon EKS クラスターとマネージドノードグループ（AL2023, Graviton / arm64 のスポットインスタンス 1 台）
 - Amazon ECR リポジトリ（タグ上書き禁止、push 時にスキャン）
 - Amazon RDS for PostgreSQL 16（db.t4g.micro、Single-AZ、EKS ノードからのみ接続可、SSL 接続で証明書を検証）
-- アプリの Kubernetes リソース（Deployment、NLB 経由で公開する Service、DB 接続情報と JWT 署名鍵の Secret）
+- アプリが使う Kubernetes リソース（Namespace、NLB 経由で公開する Service、DB 接続情報と JWT 署名鍵の Secret、RDS の CA 証明書の ConfigMap）
 
 デフォルト値は検証環境向けにコストを優先しています。NAT Gateway は作らず、ノードはパブリックサブネットに置きます。ノードが受け付けるのは EKS からの通信と、`app_allowed_cidrs` からアプリの NodePort への接続だけです。スポットのためノードが回収されると数分止まることがあります。本番相当にする設定は `terraform.tfvars.example` にまとめています。
 
@@ -92,25 +93,44 @@ cd terraform
 cp terraform.tfvars.example terraform.tfvars   # 任意
 terraform init
 
-# 1. ECR リポジトリだけ先に作る
-TAG=$(git rev-parse --short HEAD)
-terraform apply -target=aws_ecr_repository.app -var image_tag=$TAG
+# 1. インフラを作る（初回は 20 分ほどかかる）
+terraform apply
+terraform output app_url
 
 # 2. イメージをビルドして push する（ノードは arm64。x86_64 のノードにした場合は linux/amd64）
+TAG=$(git rev-parse --short HEAD)
 ECR=$(terraform output -raw ecr_repository_url)
 aws ecr get-login-password --region ap-northeast-1 | docker login --username AWS --password-stdin ${ECR%%/*}
 docker build --platform linux/arm64 -t $ECR:$TAG ..
 docker push $ECR:$TAG
-
-# 3. 残りをすべて作成してアプリをデプロイする（初回は 20 分ほどかかる）
-terraform apply -var image_tag=$TAG
-terraform output app_url
 ```
 
-2 回目以降のデプロイは、新しいタグでイメージを push してから手順 3 を実行します。kubectl を使う場合は `terraform output -raw configure_kubectl` のコマンドを実行してください。
+3 つ目の手順として、`k8s/overlays/demo` を Harness CD でデプロイします（下記）。kubectl を使う場合は `terraform output -raw configure_kubectl` のコマンドを実行してください。
 
-- `acm_certificate_arn` を指定しない場合、アプリは HTTP (80) で公開されます。ログイン情報や JWT が平文で流れるため、検証以外では ACM 証明書を指定して HTTPS にしてください。- state には DB パスワードと JWT 署名鍵が含まれます。チームで使う場合は `versions.tf` のコメントを参考に、暗号化した S3 バックエンドに保存してください。
-- EKS のコントロールプレーンは起動しているだけで課金されるため、使わない期間は `terraform destroy -var image_tag=$TAG` で削除するのが最も安上がりです。RDS の削除保護と最終スナップショットはデフォルトで無効なので、DB のデータも含めてすべて消えます。
+- `acm_certificate_arn` を指定しない場合、アプリは HTTP (80) で公開されます。ログイン情報や JWT が平文で流れるため、検証以外では ACM 証明書を指定して HTTPS にしてください。
+- state には DB パスワードと JWT 署名鍵が含まれます。チームで使う場合は `versions.tf` のコメントを参考に、暗号化した S3 バックエンドに保存してください。
+- EKS のコントロールプレーンは起動しているだけで課金されるため、使わない期間は `terraform destroy` で削除するのが最も安上がりです。RDS の削除保護と最終スナップショットはデフォルトで無効なので、DB のデータも含めてすべて消えます。
+
+### アプリのデプロイ（Kustomize + Harness CD）
+
+```
+k8s/
+├── base/                  # Deployment（Secret / ConfigMap / Service は Terraform が作る）
+├── overlays/demo/         # Namespace と Secret 名を terraform.tfvars の project に合わせる
+└── harness/image-patch.yaml  # Harness がデプロイするイメージに置き換えるパッチ
+```
+
+Harness の Kubernetes サービスで、マニフェストに Kustomize（フォルダ `k8s/overlays/demo`）、Kustomize Patches に `k8s/harness/image-patch.yaml`、アーティファクトに ECR のリポジトリを指定し、`K8sRollingDeploy` でデプロイします。インフラストラクチャの Namespace は `terraform.tfvars` の `project` と同じにしてください。
+
+Harness を使わずに確認する場合は、イメージを指定して kubectl で適用できます。
+
+```bash
+cd k8s/overlays/demo
+kustomize edit set image atlasbank=$ECR:$TAG   # kustomization.yaml が書き換わるのでコミットしない
+kubectl apply -k .
+```
+
+Service は `app.kubernetes.io/name: atlasbank` のラベルで Pod を選びます。Deployment のラベルを変える場合は `terraform/app.tf` の `app_selector` も合わせてください。
 
 ## API エンドポイント
 

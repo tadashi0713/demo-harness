@@ -10,11 +10,6 @@ variable "project" {
   default     = "atlasbank"
 }
 
-variable "image_tag" {
-  description = "デプロイするコンテナイメージのタグ（ECR に push 済みのもの）"
-  type        = string
-}
-
 # --- ネットワーク ---
 
 variable "vpc_cidr" {
@@ -159,19 +154,7 @@ variable "db_skip_final_snapshot" {
   default     = true
 }
 
-# --- アプリケーション ---
-
-variable "app_replicas" {
-  description = "2 以上にすると PodDisruptionBudget を作り、ノード入れ替え中も 1 台は稼働させる"
-  type        = number
-  default     = 1
-}
-
-variable "seed_demo_data" {
-  description = "起動時にデモユーザーを投入する（users テーブルが空のときだけ）"
-  type        = bool
-  default     = true
-}
+# --- アプリケーションの公開（Deployment は k8s/ で管理） ---
 
 variable "acm_certificate_arn" {
   description = "指定すると NLB で TLS を終端し 443 で公開する。未指定なら 80 (HTTP) で公開する"

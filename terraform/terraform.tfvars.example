@@ -1,5 +1,5 @@
 # cp terraform.tfvars.example terraform.tfvars して必要な値だけ変更する
-# image_tag はデプロイのたびに -var image_tag=... で渡す
+# アプリの Deployment は k8s/ のマニフェストで管理する（project を変えたら k8s/overlays/demo も合わせる）
 #
 # デフォルト値は検証環境向けにコストを優先している
 # （Graviton のスポット 1 台、NAT Gateway なし、2 AZ、RDS は削除保護なし）
@@ -25,7 +25,6 @@ project = "tadashi-demo"
 # node_capacity_type        = "ON_DEMAND"
 # node_min_size             = 2
 # node_desired_size         = 2
-# app_replicas              = 2
 # cluster_enabled_log_types = ["audit", "api", "authenticator"]
 # db_multi_az               = true
 # db_instance_class         = "db.t4g.small"

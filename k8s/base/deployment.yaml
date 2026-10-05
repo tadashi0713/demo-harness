@@ -1,0 +1,88 @@
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: atlasbank
+  labels:
+    app.kubernetes.io/name: atlasbank
+spec:
+  replicas: 1
+  selector:
+    matchLabels:
+      app.kubernetes.io/name: atlasbank
+  strategy:
+    type: RollingUpdate
+    rollingUpdate:
+      maxSurge: 1
+      maxUnavailable: 0
+  template:
+    metadata:
+      labels:
+        # Terraform 管理の Service (terraform/app.tf) はこのラベルで Pod を選ぶ
+        app.kubernetes.io/name: atlasbank
+    spec:
+      securityContext:
+        runAsNonRoot: true
+        runAsUser: 1000
+        runAsGroup: 1000
+      topologySpreadConstraints:
+        - maxSkew: 1
+          topologyKey: topology.kubernetes.io/zone
+          whenUnsatisfiable: ScheduleAnyway
+          labelSelector:
+            matchLabels:
+              app.kubernetes.io/name: atlasbank
+      containers:
+        - name: app
+          # 実際のイメージはデプロイ時に差し替える（Harness では k8s/harness/image-patch.yaml）
+          image: atlasbank
+          ports:
+            - name: http
+              containerPort: 3000
+          env:
+            - name: NODE_ENV
+              value: production
+            - name: SEED_DEMO_DATA
+              value: "true"
+          # DATABASE_URL と JWT_SECRET。Secret は Terraform が作成する
+          envFrom:
+            - secretRef:
+                name: atlasbank-env
+          volumeMounts:
+            - name: rds-ca
+              mountPath: /etc/rds-ca
+              readOnly: true
+          resources:
+            requests:
+              cpu: 250m
+              memory: 256Mi
+            limits:
+              memory: 512Mi
+          # 起動時にマイグレーションを流すため、準備完了まで長めに待つ
+          startupProbe:
+            httpGet:
+              path: /api/health
+              port: http
+            periodSeconds: 5
+            failureThreshold: 36
+          # /api/health は DB に問い合わせるので、DB 障害時はトラフィックから外すだけにする
+          readinessProbe:
+            httpGet:
+              path: /api/health
+              port: http
+            periodSeconds: 10
+            timeoutSeconds: 3
+            failureThreshold: 3
+          livenessProbe:
+            tcpSocket:
+              port: http
+            periodSeconds: 20
+            failureThreshold: 3
+          securityContext:
+            allowPrivilegeEscalation: false
+            capabilities:
+              drop: ["ALL"]
+      volumes:
+        # RDS の CA 証明書。ConfigMap は Terraform が作成する
+        - name: rds-ca
+          configMap:
+            name: rds-ca-bundle

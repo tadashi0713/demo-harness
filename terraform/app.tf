@@ -1,6 +1,7 @@
 locals {
-  app_labels = {
-    "app.kubernetes.io/name" = var.project
+  # アプリの Deployment は k8s/ のマニフェストで管理する。Pod のラベルと揃えること
+  app_selector = {
+    "app.kubernetes.io/name" = "atlasbank"
   }
 
   rds_ca_dir  = "/etc/rds-ca"
@@ -44,6 +45,7 @@ resource "kubernetes_namespace_v1" "app" {
   }
 }
 
+# k8s/base/deployment.yaml が envFrom で読み込む
 resource "kubernetes_secret_v1" "app" {
   metadata {
     name      = "${var.project}-env"
@@ -56,6 +58,7 @@ resource "kubernetes_secret_v1" "app" {
   }
 }
 
+# k8s/base/deployment.yaml が /etc/rds-ca にマウントする
 resource "kubernetes_config_map_v1" "rds_ca" {
   metadata {
     name      = "rds-ca-bundle"
@@ -67,159 +70,7 @@ resource "kubernetes_config_map_v1" "rds_ca" {
   }
 }
 
-resource "kubernetes_deployment_v1" "app" {
-  metadata {
-    name      = var.project
-    namespace = kubernetes_namespace_v1.app.metadata[0].name
-    labels    = local.app_labels
-  }
-
-  spec {
-    replicas = var.app_replicas
-
-    selector {
-      match_labels = local.app_labels
-    }
-
-    strategy {
-      type = "RollingUpdate"
-      rolling_update {
-        max_surge       = "1"
-        max_unavailable = "0"
-      }
-    }
-
-    template {
-      metadata {
-        labels = local.app_labels
-        annotations = {
-          # Secret を更新したら Pod を入れ替えて環境変数を読み直させる
-          "checksum/secret" = sha256(jsonencode(kubernetes_secret_v1.app.data))
-        }
-      }
-
-      spec {
-        security_context {
-          run_as_non_root = true
-          run_as_user     = 1000
-          run_as_group    = 1000
-        }
-
-        topology_spread_constraint {
-          max_skew           = 1
-          topology_key       = "topology.kubernetes.io/zone"
-          when_unsatisfiable = "ScheduleAnyway"
-          label_selector {
-            match_labels = local.app_labels
-          }
-        }
-
-        container {
-          name  = "app"
-          image = "${aws_ecr_repository.app.repository_url}:${var.image_tag}"
-
-          port {
-            name           = "http"
-            container_port = 3000
-          }
-
-          env {
-            name  = "NODE_ENV"
-            value = "production"
-          }
-          env {
-            name  = "SEED_DEMO_DATA"
-            value = tostring(var.seed_demo_data)
-          }
-          env_from {
-            secret_ref {
-              name = kubernetes_secret_v1.app.metadata[0].name
-            }
-          }
-
-          volume_mount {
-            name       = "rds-ca"
-            mount_path = local.rds_ca_dir
-            read_only  = true
-          }
-
-          resources {
-            requests = {
-              cpu    = "250m"
-              memory = "256Mi"
-            }
-            limits = {
-              memory = "512Mi"
-            }
-          }
-
-          # 起動時にマイグレーションを流すため、準備完了まで長めに待つ
-          startup_probe {
-            http_get {
-              path = "/api/health"
-              port = "http"
-            }
-            period_seconds    = 5
-            failure_threshold = 36
-          }
-
-          # /api/health は DB に問い合わせるので、DB 障害時はトラフィックから外すだけにする
-          readiness_probe {
-            http_get {
-              path = "/api/health"
-              port = "http"
-            }
-            period_seconds    = 10
-            timeout_seconds   = 3
-            failure_threshold = 3
-          }
-
-          liveness_probe {
-            tcp_socket {
-              port = "http"
-            }
-            period_seconds    = 20
-            failure_threshold = 3
-          }
-
-          security_context {
-            allow_privilege_escalation = false
-            capabilities {
-              drop = ["ALL"]
-            }
-          }
-        }
-
-        volume {
-          name = "rds-ca"
-          config_map {
-            name = kubernetes_config_map_v1.rds_ca.metadata[0].name
-          }
-        }
-      }
-    }
-  }
-
-  depends_on = [aws_vpc_security_group_ingress_rule.db_from_eks_nodes]
-}
-
-# レプリカ 1 台で min_available = 1 にするとノードの drain が進まなくなるため、2 台以上のときだけ作る
-resource "kubernetes_pod_disruption_budget_v1" "app" {
-  count = var.app_replicas > 1 ? 1 : 0
-
-  metadata {
-    name      = var.project
-    namespace = kubernetes_namespace_v1.app.metadata[0].name
-  }
-
-  spec {
-    min_available = 1
-    selector {
-      match_labels = local.app_labels
-    }
-  }
-}
-
+# NLB は DNS (CNAME) と ACM 証明書に結び付くため、アプリとは分けて Terraform で管理する
 resource "kubernetes_service_v1" "app" {
   metadata {
     name      = var.project
@@ -238,7 +89,7 @@ resource "kubernetes_service_v1" "app" {
 
   spec {
     type                        = "LoadBalancer"
-    selector                    = local.app_labels
+    selector                    = local.app_selector
     load_balancer_source_ranges = var.app_allowed_cidrs
 
     port {

@@ -1,0 +1,11 @@
+apiVersion: kustomize.config.k8s.io/v1beta1
+kind: Kustomization
+
+# terraform.tfvars の project と同じ値（Namespace と Secret の名前に使われている）
+namespace: tadashi-demo
+
+resources:
+  - ../../base
+
+patches:
+  - path: deployment-patch.yaml

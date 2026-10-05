@@ -1,0 +1,12 @@
+# Harness サービスの Kustomize Patches に指定する。
+# Harness がデプロイ時に式を ECR のイメージ（タグ付き）へ置き換える
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: atlasbank
+spec:
+  template:
+    spec:
+      containers:
+        - name: app
+          image: <+artifacts.primary.image>

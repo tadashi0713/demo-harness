@@ -6,4 +6,5 @@ yarn-error.log
 .git
 .claude
 terraform
+k8s
 reports
