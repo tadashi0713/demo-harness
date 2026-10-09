@@ -70,7 +70,7 @@ variable "node_ami_type" {
 variable "node_instance_types" {
   description = "ワーカーノードのインスタンスタイプ。スポットの場合は複数指定すると確保しやすい"
   type        = list(string)
-  default     = ["t4g.medium", "t4g.large", "c6g.large", "c7g.large"]
+  default     = ["t4g.large", "m6g.large", "m7g.large"]
 }
 
 variable "node_capacity_type" {

@@ -16,7 +16,7 @@ project = "tadashi-demo"
 
 # x86_64 のノードにする場合（イメージも --platform linux/amd64 でビルドする）
 # node_ami_type       = "AL2023_x86_64_STANDARD"
-# node_instance_types = ["t3.medium", "t3a.medium"]
+# node_instance_types = ["t3.large", "t3a.large", "m6i.large"]
 
 # 本番相当の構成にする場合
 # az_count                  = 3
