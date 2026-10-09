@@ -23,3 +23,23 @@ output "configure_kubectl" {
 output "rds_endpoint" {
   value = aws_db_instance.app.address
 }
+
+output "db_jdbc_url" {
+  description = "Harness Database DevOps の JDBC コネクターに設定する URL"
+  value = format(
+    "jdbc:postgresql://%s:%d/%s?sslmode=require",
+    aws_db_instance.app.address,
+    aws_db_instance.app.port,
+    aws_db_instance.app.db_name,
+  )
+}
+
+output "db_username" {
+  value = aws_db_instance.app.username
+}
+
+output "db_password" {
+  description = "Harness のシークレットに登録する。terraform output -raw db_password で表示する"
+  value       = random_password.db.result
+  sensitive   = true
+}

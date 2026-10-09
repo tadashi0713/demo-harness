@@ -4,15 +4,16 @@ TypeScript で書かれたシンプルなデジタルバンクのデモです。
 
 ```
 demo-harness/                 # Next.js 15 (App Router) + TypeScript
-├── docker-compose.yml        # db / app の 2 サービス
+├── docker-compose.yml        # db / migrate / app の 3 サービス
 ├── Dockerfile
+├── db/changelog.yaml         # スキーマ（Liquibase の changelog）
 ├── terraform/                # AWS (EKS / ECR / RDS) のインフラ
 ├── k8s/                      # EKS にデプロイするマニフェスト（Kustomize）
 └── src/
     ├── app/                  # 画面
     ├── app/api/              # API（Route Handlers）
     ├── server/               # DB 接続・認証・業務ロジック（サーバー専用）
-    ├── instrumentation.ts    # 起動時のスキーマ適用・デモデータ投入
+    ├── instrumentation.ts    # 起動時のデモデータ投入
     └── lib/                  # ブラウザ側の API クライアントと共有型
 ```
 
@@ -35,7 +36,7 @@ docker compose up --build
 - アプリ: http://localhost:3000 （API は同じオリジンの `/api/*`、ヘルスチェック: `/api/health`）
 - PostgreSQL: `localhost:5432`（user/password/db はすべて `atlasbank`）
 
-初回起動時にアプリがスキーマを作成し、デモデータを投入します。
+`migrate` サービスが Liquibase で `db/changelog.yaml` を適用してから、アプリが起動してデモデータを投入します。
 
 ### デモアカウント
 
@@ -58,6 +59,7 @@ DB だけ Docker で起動し、アプリは手元の Node.js（v20 以上）で
 
 ```bash
 docker compose up -d db
+docker compose run --rm migrate   # スキーマを適用する
 
 yarn install
 DATABASE_URL=postgres://atlasbank:atlasbank@localhost:5432/atlasbank JWT_SECRET=dev yarn dev
@@ -165,7 +167,7 @@ curl -s http://localhost:3000/api/accounts -H "Authorization: Bearer $TOKEN" | j
 | `accounts`     | `id`, `user_id`, `account_number`, `name`, `kind`, `currency`, `balance`    |
 | `transactions` | `id`, `account_id`, `peer_account_id`, `transfer_id`, `direction`, `kind`, `amount`, `balance_after`, `description` |
 
-金額は最小通貨単位の整数（JPY なら円）で保持し、小数計算による誤差を避けています。スキーマはアプリ起動時に `src/server/db/migrate.ts` が冪等に適用します。
+金額は最小通貨単位の整数（JPY なら円）で保持し、小数計算による誤差を避けています。スキーマは `db/changelog.yaml`（Liquibase）で管理し、EKS では Harness Database DevOps が Deploy demo ステージのロールアウト前に適用します。スキーマを変えるときは changeSet を追加してください（適用済みの changeSet は書き換えない）。
 
 ## 環境変数
 
@@ -181,5 +183,4 @@ curl -s http://localhost:3000/api/accounts -H "Authorization: Bearer $TOKEN" | j
 本番運用を想定した実装ではありません。以下は意図的に簡略化しています。
 
 - JWT を localStorage に保存（本番では HttpOnly Cookie を推奨）
-- マイグレーション管理ツールを使わず起動時に `CREATE TABLE IF NOT EXISTS` を実行
 - 監査ログ、レート制限、二要素認証、通貨換算、複式簿記の勘定科目は未実装

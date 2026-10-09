@@ -1,0 +1,72 @@
+# Harness Database DevOps (Liquibase) が Deploy demo ステージで適用する changelog
+# ローカルでは docker-compose.yml の migrate サービスが適用する
+# 以前はアプリ起動時にスキーマを作っていたため、既存の DB に適用できるよう初期スキーマは IF NOT EXISTS にしている
+databaseChangeLog:
+  - changeSet:
+      id: 001-pgcrypto
+      author: tadashi.nemoto
+      changes:
+        - sql:
+            sql: CREATE EXTENSION IF NOT EXISTS pgcrypto;
+
+  - changeSet:
+      id: 002-users
+      author: tadashi.nemoto
+      changes:
+        - sql:
+            sql: |
+              CREATE TABLE IF NOT EXISTS users (
+                id            UUID PRIMARY KEY DEFAULT gen_random_uuid(),
+                email         TEXT NOT NULL UNIQUE,
+                password_hash TEXT NOT NULL,
+                full_name     TEXT NOT NULL,
+                created_at    TIMESTAMPTZ NOT NULL DEFAULT now()
+              );
+      rollback:
+        - sql:
+            sql: DROP TABLE IF EXISTS users;
+
+  - changeSet:
+      id: 003-accounts
+      author: tadashi.nemoto
+      changes:
+        - sql:
+            sql: |
+              CREATE TABLE IF NOT EXISTS accounts (
+                id             UUID PRIMARY KEY DEFAULT gen_random_uuid(),
+                user_id        UUID NOT NULL REFERENCES users(id) ON DELETE CASCADE,
+                account_number TEXT NOT NULL UNIQUE,
+                name           TEXT NOT NULL,
+                kind           TEXT NOT NULL CHECK (kind IN ('checking', 'savings')),
+                currency       TEXT NOT NULL DEFAULT 'JPY',
+                balance        BIGINT NOT NULL DEFAULT 0 CHECK (balance >= 0),
+                created_at     TIMESTAMPTZ NOT NULL DEFAULT now()
+              );
+              CREATE INDEX IF NOT EXISTS accounts_user_id_idx ON accounts(user_id);
+      rollback:
+        - sql:
+            sql: DROP TABLE IF EXISTS accounts;
+
+  - changeSet:
+      id: 004-transactions
+      author: tadashi.nemoto
+      changes:
+        - sql:
+            sql: |
+              CREATE TABLE IF NOT EXISTS transactions (
+                id              UUID PRIMARY KEY DEFAULT gen_random_uuid(),
+                account_id      UUID NOT NULL REFERENCES accounts(id) ON DELETE CASCADE,
+                peer_account_id UUID REFERENCES accounts(id) ON DELETE SET NULL,
+                transfer_id     UUID,
+                direction       TEXT NOT NULL CHECK (direction IN ('credit', 'debit')),
+                kind            TEXT NOT NULL CHECK (kind IN ('deposit', 'withdrawal', 'transfer')),
+                amount          BIGINT NOT NULL CHECK (amount > 0),
+                balance_after   BIGINT NOT NULL,
+                description     TEXT NOT NULL DEFAULT '',
+                created_at      TIMESTAMPTZ NOT NULL DEFAULT now()
+              );
+              CREATE INDEX IF NOT EXISTS transactions_account_id_created_at_idx
+                ON transactions(account_id, created_at DESC);
+      rollback:
+        - sql:
+            sql: DROP TABLE IF EXISTS transactions;

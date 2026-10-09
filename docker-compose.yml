@@ -17,6 +17,23 @@ services:
       timeout: 5s
       retries: 20
 
+  # EKS では Harness Database DevOps が同じ changelog を適用する
+  migrate:
+    image: liquibase/liquibase:4.31
+    container_name: atlasbank-migrate
+    volumes:
+      - ./db:/liquibase/changelog:ro
+    command:
+      - --search-path=/liquibase/changelog
+      - --changelog-file=changelog.yaml
+      - --url=jdbc:postgresql://db:5432/${POSTGRES_DB:-atlasbank}
+      - --username=${POSTGRES_USER:-atlasbank}
+      - --password=${POSTGRES_PASSWORD:-atlasbank}
+      - update
+    depends_on:
+      db:
+        condition: service_healthy
+
   app:
     build:
       context: .
@@ -31,8 +48,8 @@ services:
     ports:
       - "${APP_PORT:-3000}:3000"
     depends_on:
-      db:
-        condition: service_healthy
+      migrate:
+        condition: service_completed_successfully
 
 volumes:
   db-data:

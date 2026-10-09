@@ -57,7 +57,7 @@ spec:
               memory: 256Mi
             limits:
               memory: 512Mi
-          # 起動時にマイグレーションを流すため、準備完了まで長めに待つ
+          # 起動時にデモデータを投入するため、準備完了まで長めに待つ
           startupProbe:
             httpGet:
               path: /api/health
