@@ -18,6 +18,10 @@ terraform {
       source  = "hashicorp/http"
       version = "~> 3.4"
     }
+    helm = {
+      source  = "hashicorp/helm"
+      version = "~> 2.17"
+    }
   }
 
   # state には DB パスワードや JWT 署名鍵が含まれるため、チームで使う場合は

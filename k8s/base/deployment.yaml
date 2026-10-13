@@ -16,6 +16,11 @@ spec:
       maxUnavailable: 0
   template:
     metadata:
+      # Prometheus（terraform/monitoring.tf）がこの設定で /api/metrics を収集する
+      annotations:
+        prometheus.io/scrape: "true"
+        prometheus.io/port: "3000"
+        prometheus.io/path: /api/metrics
       labels:
         # Terraform 管理の Service (terraform/app.tf) はこのラベルで Pod を選ぶ
         app.kubernetes.io/name: atlasbank

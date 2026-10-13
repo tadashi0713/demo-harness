@@ -2,6 +2,7 @@ import { NextRequest } from 'next/server';
 import { afterEach, describe, expect, it, vi } from 'vitest';
 import { z } from 'zod';
 import { conflict } from './http-error';
+import { metrics } from './metrics';
 import { errorResponse, readJson, route } from './route';
 
 afterEach(() => {
@@ -56,6 +57,21 @@ describe('route', () => {
     const res = await handler(req, { params: Promise.resolve({}) });
 
     expect(res.status).toBe(409);
+  });
+
+  it('メソッドとステータスごとにリクエスト数を記録する', async () => {
+    const count = async () =>
+      (await metrics.httpRequests.get()).values.find(
+        (v) => v.labels.method === 'GET' && v.labels.status === '409',
+      )?.value ?? 0;
+    const before = await count();
+
+    const handler = route(async () => {
+      throw conflict('競合しました');
+    });
+    await handler(req, { params: Promise.resolve({}) });
+
+    expect(await count()).toBe(before + 1);
   });
 });
 

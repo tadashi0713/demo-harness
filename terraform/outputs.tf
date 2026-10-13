@@ -20,6 +20,11 @@ output "configure_kubectl" {
   value       = "aws eks update-kubeconfig --region ${var.region} --name ${module.eks.cluster_name}"
 }
 
+output "prometheus_url" {
+  description = "Harness の Prometheus コネクターに設定する URL（クラスター内のデリゲートから参照する）"
+  value       = "http://prometheus-server.${helm_release.prometheus.namespace}.svc.cluster.local"
+}
+
 output "rds_endpoint" {
   value = aws_db_instance.app.address
 }

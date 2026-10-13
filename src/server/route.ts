@@ -1,6 +1,7 @@
 import { NextResponse, type NextRequest } from 'next/server';
 import { ZodError } from 'zod';
 import { badRequest, HttpError } from './http-error';
+import { recordRequest } from './metrics';
 
 export function errorResponse(error: unknown): NextResponse {
   if (error instanceof ZodError) {
@@ -35,11 +36,15 @@ export function route<P extends Record<string, string> = Record<string, string>>
   handler: (req: NextRequest, params: P) => Promise<Response>,
 ) {
   return async (req: NextRequest, context: { params: Promise<P> }): Promise<Response> => {
+    const startedAt = performance.now();
+    let res: Response;
     try {
-      return await handler(req, await context.params);
+      res = await handler(req, await context.params);
     } catch (error) {
-      return errorResponse(error);
+      res = errorResponse(error);
     }
+    recordRequest(req.method, res.status, (performance.now() - startedAt) / 1000);
+    return res;
   };
 }
 
