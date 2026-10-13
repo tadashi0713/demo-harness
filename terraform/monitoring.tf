@@ -10,6 +10,10 @@ resource "helm_release" "prometheus" {
 
   values = [yamlencode({
     server = {
+      # 既定の 1m だと rate(...[1m]) にサンプルが 2 点そろわず、AI Verify の分析粒度にも粗すぎる
+      global = {
+        scrape_interval = "15s"
+      }
       # クラスターに EBS CSI ドライバーが無いため PVC は使えない。Pod 再作成でメトリクスは消える
       persistentVolume = { enabled = false }
       retention        = "3d"

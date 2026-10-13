@@ -62,15 +62,15 @@ variable "cluster_enabled_log_types" {
 }
 
 variable "node_ami_type" {
-  description = "ワーカーノードの AMI。node_instance_types と CPU アーキテクチャを揃え、イメージも同じアーキテクチャでビルドする"
+  description = "ワーカーノードの AMI。node_instance_types と CPU アーキテクチャを揃え、イメージも同じアーキテクチャでビルドする。Harness の AI Verify のデータ収集プラグインは amd64 版しかないため x86_64 にしている"
   type        = string
-  default     = "AL2023_ARM_64_STANDARD"
+  default     = "AL2023_x86_64_STANDARD"
 }
 
 variable "node_instance_types" {
   description = "ワーカーノードのインスタンスタイプ。スポットの場合は複数指定すると確保しやすい"
   type        = list(string)
-  default     = ["t4g.large", "m6g.large", "m7g.large"]
+  default     = ["t3.large", "t3a.large", "m6i.large"]
 }
 
 variable "node_capacity_type" {

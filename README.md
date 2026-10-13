@@ -81,7 +81,7 @@ yarn test:watch       # ウォッチモード
 インフラは `terraform/` の Terraform、アプリの Deployment は `k8s/` の Kustomize マニフェストで管理します。`terraform apply` で作られるのは以下です。
 
 - VPC（2 AZ。パブリック / プライベート / DB 用サブネット）
-- Amazon EKS クラスターとマネージドノードグループ（AL2023, Graviton / arm64 のスポットインスタンス 1 台）
+- Amazon EKS クラスターとマネージドノードグループ（AL2023, x86_64 のスポットインスタンス 1 台。Harness の AI Verify のデータ収集プラグインが amd64 版しかないため arm64 は使わない）
 - Amazon ECR リポジトリ（タグ上書き禁止、push 時にスキャン）
 - Amazon RDS for PostgreSQL 16（db.t4g.micro、Single-AZ、EKS ノードからのみ接続可、SSL 接続で証明書を検証）
 - アプリが使う Kubernetes リソース（Namespace、NLB 経由で公開する Service、DB 接続情報と JWT 署名鍵の Secret、RDS の CA 証明書の ConfigMap）
@@ -99,11 +99,11 @@ terraform init
 terraform apply
 terraform output app_url
 
-# 2. イメージをビルドして push する（ノードは arm64。x86_64 のノードにした場合は linux/amd64）
+# 2. イメージをビルドして push する（ノードは x86_64。arm64 のノードにした場合は linux/arm64）
 TAG=$(git rev-parse --short HEAD)
 ECR=$(terraform output -raw ecr_repository_url)
 aws ecr get-login-password --region ap-northeast-1 | docker login --username AWS --password-stdin ${ECR%%/*}
-docker build --platform linux/arm64 -t $ECR:$TAG ..
+docker build --platform linux/amd64 -t $ECR:$TAG ..
 docker push $ECR:$TAG
 ```
 
