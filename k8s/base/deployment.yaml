@@ -6,9 +6,12 @@ metadata:
     app.kubernetes.io/name: atlasbank
 spec:
   replicas: 1
+  # harness.io/track は Harness の Canary が selector に付けるラベル。selector は作成後に変更できず、
+  # stg (Rolling) と prod (Canary) が同じ Deployment を共有するため、マニフェストで常に固定しておく
   selector:
     matchLabels:
       app.kubernetes.io/name: atlasbank
+      harness.io/track: stable
   strategy:
     type: RollingUpdate
     rollingUpdate:
@@ -24,6 +27,7 @@ spec:
       labels:
         # Terraform 管理の Service (terraform/app.tf) はこのラベルで Pod を選ぶ
         app.kubernetes.io/name: atlasbank
+        harness.io/track: stable
     spec:
       securityContext:
         runAsNonRoot: true
