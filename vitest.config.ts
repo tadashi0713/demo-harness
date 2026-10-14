@@ -11,5 +11,12 @@ export default defineConfig({
     env: { JWT_SECRET: 'test-secret', TZ: 'Asia/Tokyo' },
     reporters: ['default', 'junit'],
     outputFile: { junit: 'reports/junit.xml' },
+    coverage: {
+      provider: 'v8',
+      include: ['src/**/*.{ts,tsx}'],
+      exclude: ['src/**/*.test.ts'],
+      reporter: ['text', 'lcov'],
+      reportsDirectory: 'reports/coverage',
+    },
   },
 });
