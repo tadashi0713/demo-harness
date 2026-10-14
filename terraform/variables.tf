@@ -55,6 +55,18 @@ variable "cluster_endpoint_public_access_cidrs" {
   default     = ["0.0.0.0/0"]
 }
 
+variable "cluster_admin_principal_arn" {
+  description = "クラスター管理者にする IAM ロールの ARN（kubectl を使う人のロール）。null なら terraform を実行した IAM ロール。Harness IaCM から実行する場合は必ず指定する"
+  type        = string
+  default     = null
+}
+
+variable "iacm_role_arn" {
+  description = "Harness IaCM が terraform を実行するときの IAM ロールの ARN。kubernetes / helm プロバイダーがクラスターに接続するため管理者権限を付与する"
+  type        = string
+  default     = null
+}
+
 variable "cluster_enabled_log_types" {
   description = "CloudWatch Logs に送るコントロールプレーンのログ（例: [\"audit\", \"api\", \"authenticator\"]）"
   type        = list(string)

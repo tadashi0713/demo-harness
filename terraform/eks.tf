@@ -1,3 +1,18 @@
+data "aws_caller_identity" "current" {}
+
+data "aws_iam_session_context" "current" {
+  arn = data.aws_caller_identity.current.arn
+}
+
+locals {
+  # キー cluster_creator は、以前 enable_cluster_creator_admin_permissions で作ったエントリと同じキー。
+  # キーを変えると access entry が作り直しになる
+  cluster_admin_principal_arns = merge(
+    { cluster_creator = coalesce(var.cluster_admin_principal_arn, data.aws_iam_session_context.current.issuer_arn) },
+    var.iacm_role_arn == null ? {} : { iacm = var.iacm_role_arn },
+  )
+}
+
 module "eks" {
   source  = "terraform-aws-modules/eks/aws"
   version = "~> 20.37"
@@ -8,8 +23,20 @@ module "eks" {
   cluster_endpoint_public_access       = true
   cluster_endpoint_public_access_cidrs = var.cluster_endpoint_public_access_cidrs
 
-  # terraform を実行した IAM プリンシパルにクラスター管理者権限を付与する
-  enable_cluster_creator_admin_permissions = true
+  # 実行した IAM プリンシパルを管理者にすると、手元と Harness IaCM で実行者が変わるたびに
+  # 管理者が入れ替わるため、管理者は明示的に指定する
+  enable_cluster_creator_admin_permissions = false
+  access_entries = {
+    for key, arn in local.cluster_admin_principal_arns : key => {
+      principal_arn = arn
+      policy_associations = {
+        admin = {
+          policy_arn   = "arn:aws:eks::aws:cluster-access-policy/AmazonEKSClusterAdminPolicy"
+          access_scope = { type = "cluster" }
+        }
+      }
+    }
+  }
 
   cluster_enabled_log_types   = var.cluster_enabled_log_types
   create_cloudwatch_log_group = length(var.cluster_enabled_log_types) > 0

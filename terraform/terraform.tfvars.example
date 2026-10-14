@@ -14,6 +14,10 @@ project = "tadashi-demo"
 # 独自ドメインの ACM 証明書を指定すると HTTPS (443) で公開する
 # acm_certificate_arn = "arn:aws:acm:ap-northeast-1:123456789012:certificate/..."
 
+# クラスター管理者。Harness IaCM から実行する場合は両方指定する
+# cluster_admin_principal_arn = "arn:aws:iam::123456789012:role/aws-reserved/sso.amazonaws.com/AWSReservedSSO_..."
+# iacm_role_arn               = "arn:aws:iam::123456789012:role/HarnessOIDCRole"
+
 # Graviton (arm64) のノードにする場合（イメージも --platform linux/arm64 でビルドする）
 # Harness の AI Verify のデータ収集プラグインは amd64 版しかないため、AI Verify は動かなくなる
 # node_ami_type       = "AL2023_ARM_64_STANDARD"
