@@ -19,7 +19,7 @@ services:
 
   # EKS では Harness Database DevOps が同じ changelog を適用する
   migrate:
-    image: liquibase/liquibase:4.33
+    image: liquibase/liquibase:5.0
     container_name: atlasbank-migrate
     volumes:
       - ./db:/liquibase/changelog:ro
