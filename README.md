@@ -76,6 +76,24 @@ yarn test:watch       # ウォッチモード
 
 テストファイルは対象のソースと同じディレクトリに `*.test.ts` として置いています。
 
+### E2E テスト（Playwright）
+
+ブラウザでログイン・口座表示・入金・振込を操作する E2E テストを [Playwright](https://playwright.dev/) で `e2e/` に置いています。実際の PostgreSQL を使うため、DB を起動してスキーマを適用してから実行してください。テストはアプリ（`yarn dev`）を自動で起動します。
+
+```bash
+docker compose up -d db
+docker compose run --rm migrate
+npx playwright install chromium   # 初回のみ
+
+yarn test:e2e         # ヘッドレスで実行
+yarn test:e2e:ui      # UI モードで実行
+```
+
+- 起動済みの環境に対して実行する場合は `E2E_BASE_URL=https://... yarn test:e2e`
+- Harness のパイプラインでは、stg へのデプロイ後に stg（`https://harness-demo-aws.tadashi0713.dev`）に対して実行します
+- 結果は `reports/playwright-report`（HTML）と `reports/e2e-junit.xml` に出力されます
+- 振込や入金で残高が変わるため、テストは直列に実行し、残高は実行前との差分で検証しています
+
 ## AWS へのデプロイ（Terraform）
 
 インフラは `terraform/` の Terraform、アプリの Deployment は `k8s/` の Kustomize マニフェストで管理します。`terraform apply` で作られるのは以下です。
